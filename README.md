@@ -46,6 +46,6 @@ The project requires Go 1.18 or above.
 
 ```shell
 git clone git@github.com:Ernyoke/domain-recon.git
-cd domain-recon
-go build
+cd domain-recon/cmd
+go build -o domain-recon
 ```

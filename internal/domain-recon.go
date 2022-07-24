@@ -1,27 +1,16 @@
-package main
+package internal
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jessevdk/go-flags"
+	"golang.org/x/exp/maps"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
-
-// Opts struct used to store command line arguments after parsing.
-type Opts struct {
-	Verbose []bool `short:"v" long:"verbose" description:"Show verbose debug information"`
-	Plain   bool   `short:"p" long:"plain" description:"Show plain domains"`
-	Domain  string `short:"d" long:"domain" description:"Domain name" required:"true"`
-	File    string `short:"f" long:"file" description:"File with words for extending wildcards" value-name:"FILE"`
-}
 
 // Certificate struct used to hold the data of each certificate returned from crt.sh .
 type Certificate struct {
@@ -36,47 +25,23 @@ type Certificate struct {
 	SerialNumber   string `json:"serial_number"`
 }
 
+type Flags struct {
+	Domain      string
+	PlainOutput bool
+	WordsFile   string
+}
+
 // DNSLookupResult struct used to store the domain name and the list of IP address to which this domain name is resolved.
 type DNSLookupResult struct {
 	Domain string
 	Ips    []net.IP
 }
 
-// Main entry point.
-func main() {
-	opts, err := parseArgs(os.Args)
-	if err != nil {
-		fmt.Println(err)
-		_, usage := parseArgs([]string{"-h"})
-		fmt.Println(usage)
-		return
-	}
-	if err := execute(opts); err != nil {
-		panic(err)
-		return
-	}
-}
-
-// Parse input arguments. Returns an object type of Opts with the result of the parsing. The secondary return argument
-// represents contains a potential error which can be encountered during argument parsing. If there are no errors, this
-// return value is nil
-func parseArgs(args []string) (*Opts, error) {
-	opts := Opts{}
-
-	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-	if _, err := parser.ParseArgs(args); err != nil {
-		return nil, err
-	}
-
-	return &opts, nil
-}
-
-// Execute
-func execute(opts *Opts) error {
+func Execute(flags *Flags) error {
 	ch := make(chan []byte)
 	errCh := make(chan error)
 	params := map[string]string{
-		"q":        opts.Domain,
+		"q":        flags.Domain,
 		"output":   "json",
 		"excluded": "expired",
 	}
@@ -91,8 +56,8 @@ func execute(opts *Opts) error {
 			return err
 		}
 
-		domains, extendedDomains := getResolvableDomains(certificates, opts)
-		printDomains(domains, extendedDomains, opts.Plain)
+		domains, extendedDomains := getResolvableDomains(certificates, flags)
+		printDomains(domains, extendedDomains, flags.PlainOutput)
 
 	case e := <-errCh:
 		return e
@@ -140,7 +105,7 @@ func fetchResource(u string, params map[string]string, ch chan<- []byte, errorCh
 // Returns 2 slices each containing only domain names which can be resolved to an IP address. If a file is provided
 // with a list of words, this function will attempt to extend all wildcard domains and return only those which are
 // resolvable to an IP address. If there is no file provided, the secondary return value be an empty slice.
-func getResolvableDomains(certificates []Certificate, opts *Opts) ([]string, []string) {
+func getResolvableDomains(certificates []Certificate, flags *Flags) ([]string, []string) {
 	uniqDomains := make(map[string]bool)
 	for _, cert := range certificates {
 		uniqDomains[cert.CommonName] = true
@@ -154,8 +119,8 @@ func getResolvableDomains(certificates []Certificate, opts *Opts) ([]string, []s
 
 	var uniqPotentialDomains []string
 
-	if len(opts.File) > 0 {
-		if potentialDomains, err := extendWildcardDomains(wildCardDomains, opts.File); err == nil {
+	if len(flags.WordsFile) > 0 {
+		if potentialDomains, err := extendWildcardDomains(wildCardDomains, flags.WordsFile); err == nil {
 			// Filter domains which do already exist in the non-wildcard collection
 			uniqPotentialDomains = append(uniqPotentialDomains, computeDifference(domains, potentialDomains)...)
 		}
@@ -250,7 +215,7 @@ func printReachableDomains(domain []string, plain bool) {
 		go lookUpDns(domain, ch, errCh)
 	}
 
-	for _ = range domain {
+	for range domain {
 		select {
 		case resp := <-ch:
 			if plain {
