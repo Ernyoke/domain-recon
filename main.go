@@ -45,15 +45,15 @@ type DNSLookupResult struct {
 // Main entry point.
 func main() {
 	opts, err := parseArgs(os.Args)
-	handleError := func(error) {
-		fmt.Println(err)
-		panic(err)
-	}
 	if err != nil {
-		defer handleError(err)
+		fmt.Println(err)
+		_, usage := parseArgs([]string{"-h"})
+		fmt.Println(usage)
+		return
 	}
 	if err := execute(opts); err != nil {
-		defer handleError(err)
+		panic(err)
+		return
 	}
 }
 
@@ -63,7 +63,8 @@ func main() {
 func parseArgs(args []string) (*Opts, error) {
 	opts := Opts{}
 
-	if _, err := flags.ParseArgs(&opts, args); err != nil {
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+	if _, err := parser.ParseArgs(args); err != nil {
 		return nil, err
 	}
 
