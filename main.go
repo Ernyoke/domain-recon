@@ -232,10 +232,10 @@ func computeDifference(domains []string, potentialDomains []string) []string {
 func printDomains(domains []string, extendedDomains []string, plain bool) {
 	printReachableDomains(domains, plain)
 
-	if !plain {
-		fmt.Printf("\nExtended domains:\n")
-	}
 	if len(extendedDomains) > 0 {
+		if !plain {
+			fmt.Printf("\nExtended domains:\n")
+		}
 		printReachableDomains(extendedDomains, plain)
 	}
 }
